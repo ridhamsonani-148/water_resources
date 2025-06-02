@@ -46,24 +46,16 @@ phases:
       
       # Deploy to Amplify
       - echo "Creating/updating Amplify app..."
-      - |
-        AMPLIFY_APP_ID=$(aws amplify create-app \
-          --name "${PROJECT_NAME}-frontend" \
-          --repository "$(git config --get remote.origin.url)" \
-          --query 'app.appId' \
-          --output text 2>/dev/null || \
-          aws amplify list-apps \
-          --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" \
-          --output text)
+
+      - # Create or get Amplify app ID
+      - AMPLIFY_APP_ID=$(aws amplify create-app --name "${PROJECT_NAME}-frontend" --repository "$(git config --get remote.origin.url)" --query 'app.appId' --output text 2>/dev/null)
+      - if [ -z "$AMPLIFY_APP_ID" ]; then AMPLIFY_APP_ID=$(aws amplify list-apps --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" --output text); fi
       
       # Create and deploy frontend build
       - cd build
       - zip -r ../build.zip .
       - cd ..
-      - aws amplify start-deployment \
-          --app-id "$AMPLIFY_APP_ID" \
-          --branch-name main \
-          --source-url build.zip
+      - aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --source-url build.zip
       - cd ..
 
   post_build:

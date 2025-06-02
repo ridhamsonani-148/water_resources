@@ -59,6 +59,7 @@ fi
 
 # Create main CodeBuild project
 echo "Creating CodeBuild project: ${PROJECT_NAME}"
+echo "GitHub URL: $(git config --get remote.origin.url)"
 
 BACKEND_ENV='{
   "type": "LINUX_CONTAINER",
@@ -74,11 +75,7 @@ BACKEND_ENV='{
 
 aws codebuild create-project \
   --name "${PROJECT_NAME}" \
-  --source "{\
-    \"type\":\"GITHUB\",\
-    \"location\":\"$(git config --get remote.origin.url)\",\
-    \"buildspec\":\"buildspec.yml\"\
-  }" \
+  --source "{\"type\":\"GITHUB\",\"location\":\"$(git config --get remote.origin.url)\",\"buildspec\":\"buildspec.yml\"}" \
   --artifacts '{"type":"NO_ARTIFACTS"}' \
   --environment "$BACKEND_ENV" \
   --service-role "$ROLE_ARN"
