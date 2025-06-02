@@ -80,8 +80,8 @@ phases:
   post_build:
     commands:
       - echo "Deployment complete!"
-      - echo "Backend Lambda URL: $LAMBDA_URL"
-      - echo "Frontend will be available at: https://${AMPLIFY_APP_ID}.amplifyapp.com"
+      - echo "Backend Lambda URL:$LAMBDA_URL"
+      - echo "Frontend will be available at:https://${AMPLIFY_APP_ID}.amplifyapp.com"
 
 artifacts:
   files:
