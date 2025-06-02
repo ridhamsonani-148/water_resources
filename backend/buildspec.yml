@@ -1,0 +1,37 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+      python: 3.13
+    commands:
+      - echo "Installing AWS CDK CLI..."
+      - npm install -g aws-cdk
+      - echo "Changing into Backend directory"
+      - cd Backend
+      - echo "Installing dependencies..."
+      - npm ci
+
+  pre_build:
+    commands:
+      - echo "Building TypeScript sources..."
+      - npm run build
+      - echo "Bootstrapping CDK..."
+      - cdk bootstrap --require-approval never
+
+  build:
+    commands:
+      - echo "Deploying CDK stack..."
+      - cdk deploy OpenEarthStack --require-approval never \
+          --parameters BucketName="$BUCKET_NAME" \
+          --parameters AssetsBucketName="$ASSETS_BUCKET" \
+
+  post_build:
+    commands:
+      - echo "CDK deployment complete."
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: 'cdk.out'
