@@ -18,17 +18,15 @@ phases:
       - npm run build
       - echo "Bootstrapping CDK..."
       - cdk bootstrap --require-approval never
-      - cd ..
 
   build:
     commands:
       # Deploy backend
       - echo "Deploying CDK stack..."
-      - cd backend
-      - cdk deploy OpenEarthStack --require-approval never --parameters BucketName="$BUCKET_NAME" --parameters AssetsBucketName="$ASSETS_BUCKET" --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE"
+      - cdk deploy ForestClassificationStack --require-approval never --parameters BucketName="$BUCKET_NAME" --parameters AssetsBucketName="$ASSETS_BUCKET" --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE"
       
       # Get Lambda URL for frontend
-      - LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name OpenEarthStack --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' --output text)
+      - LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name ForestClassificationStack --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' --output text)
       - cd ..
       
       # Deploy frontend
