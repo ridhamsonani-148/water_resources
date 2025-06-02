@@ -9,7 +9,8 @@ phases:
       - echo "Installing global dependencies..."
       - npm install -g aws-cdk
       - pip install --upgrade awscli
-      - npm install -g @aws-amplify/cli  # Install Amplify CLI for manual deployment
+      - npm install -g @aws-amplify/cli  # Correct Amplify CLI package
+      - apt-get update && apt-get install -y jq  # Install jq for JSON parsing
 
   pre_build:
     commands:
@@ -49,8 +50,8 @@ phases:
           exit 1
         fi
         echo "AMPLIFY_APP_ID=$AMPLIFY_APP_ID"
-
-            # Create main branch if it doesn't exist
+      
+      # Create main branch if it doesn't exist
       - echo "Creating main branch..."
       - aws amplify create-branch --app-id "$AMPLIFY_APP_ID" --branch-name main || echo "Branch already exists"
       
@@ -63,8 +64,8 @@ phases:
       # Start Amplify deployment and upload build.zip
       - echo "Starting Amplify deployment..."
       - |
-        # Initiate deployment and get presigned URL
-        DEPLOYMENT_DATA=$(aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --query '{jobId: jobId, zipUploadUrl: zipUploadUrl}' --output json)
+        # Create deployment to get presigned URL
+        DEPLOYMENT_DATA=$(aws amplify create-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --query '{jobId: jobId, zipUploadUrl: zipUploadUrl}' --output json)
         JOB_ID=$(echo "$DEPLOYMENT_DATA" | jq -r '.jobId')
         ZIP_UPLOAD_URL=$(echo "$DEPLOYMENT_DATA" | jq -r '.zipUploadUrl')
         if [ -z "$ZIP_UPLOAD_URL" ]; then
@@ -73,19 +74,14 @@ phases:
         fi
         # Upload build.zip to presigned URL
         curl -f --upload-file build.zip "$ZIP_UPLOAD_URL" || { echo "Failed to upload build.zip"; exit 1; }
-      
-      # Create and deploy frontend build
-      - cd build
-      - zip -r ../build.zip .
-      - cd ..
-      - aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --source-url build.zip
-      - cd ..
+        # Start the deployment job
+        aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" || { echo "Failed to start deployment"; exit 1; }
 
   post_build:
     commands:
       - echo "Deployment complete!"
-      - echo "Backend Lambda URL:$LAMBDA_URL"
-      - echo "Frontend will be available at:https://${AMPLIFY_APP_ID}.amplifyapp.com"
+      - echo "Backend Lambda URL: $LAMBDA_URL"
+      - echo "Frontend will be available at: https://${AMPLIFY_APP_ID}.amplifyapp.com"
 
 artifacts:
   files:
