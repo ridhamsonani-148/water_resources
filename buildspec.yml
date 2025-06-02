@@ -9,7 +9,7 @@ phases:
       - echo "Installing global dependencies..."
       - npm install -g aws-cdk
       - pip install --upgrade awscli
-      - npm install -g aws-amplify-cli  # Install Amplify CLI for manual deployment
+      - npm install -g @aws-amplify/cli  # Install Amplify CLI for manual deployment
 
   pre_build:
     commands:
