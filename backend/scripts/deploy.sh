@@ -111,7 +111,7 @@ SOURCE='{
   "type":"GITHUB",
   "location":"'"$GITHUB_URL"'",
   "buildspec":"buildspec.yml"
-}'`
+}'
 
 aws codebuild create-project \
   --name "$PROJECT_NAME" \
