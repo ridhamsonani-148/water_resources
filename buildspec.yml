@@ -14,7 +14,7 @@ phases:
     commands:
       - echo "Starting backend deployment..."
       - cd backend
-      - npm ci
+      - npm install
       - npm run build
       - echo "Bootstrapping CDK..."
       - cdk bootstrap --require-approval never
@@ -35,7 +35,7 @@ phases:
       - echo "Building frontend..."
       - cd Frontend
       - echo "REACT_APP_API_URL=$LAMBDA_URL" > .env
-      - npm ci
+      - npm install
       - npm run build
       
       # Deploy to Amplify
