@@ -25,16 +25,10 @@ phases:
       # Deploy backend
       - echo "Deploying CDK stack..."
       - cd backend
-      - cdk deploy OpenEarthStack --require-approval never \
-          --parameters BucketName="$BUCKET_NAME" \
-          --parameters AssetsBucketName="$ASSETS_BUCKET"\
-          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+      - cdk deploy OpenEarthStack --require-approval never --parameters BucketName="$BUCKET_NAME" --parameters AssetsBucketName="$ASSETS_BUCKET" --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE"
       
       # Get Lambda URL for frontend
-      - LAMBDA_URL=$(aws cloudformation describe-stacks \
-          --stack-name OpenEarthStack \
-          --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' \
-          --output text)
+      - LAMBDA_URL=$(aws cloudformation describe-stacks --stack-name OpenEarthStack --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' --output text)
       - cd ..
       
       # Deploy frontend
@@ -46,10 +40,11 @@ phases:
       
       # Deploy to Amplify
       - echo "Creating/updating Amplify app..."
-
-      - # Create or get Amplify app ID
-      - AMPLIFY_APP_ID=$(aws amplify create-app --name "${PROJECT_NAME}-frontend" --repository "$(git config --get remote.origin.url)" --query 'app.appId' --output text 2>/dev/null)
-      - if [ -z "$AMPLIFY_APP_ID" ]; then AMPLIFY_APP_ID=$(aws amplify list-apps --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" --output text); fi
+      - |
+        AMPLIFY_APP_ID=$(aws amplify create-app --name "${PROJECT_NAME}-frontend" --repository "$(git config --get remote.origin.url)" --query 'app.appId' --output text 2>/dev/null)
+        if [ -z "$AMPLIFY_APP_ID" ]; then
+          AMPLIFY_APP_ID=$(aws amplify list-apps --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" --output text)
+        fi
       
       # Create and deploy frontend build
       - cd build

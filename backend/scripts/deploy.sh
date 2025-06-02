@@ -1,8 +1,38 @@
 #!/bin/bash
 set -euo pipefail
 
-# Store the root directory path
-ROOT_DIR=$(pwd)
+# Prompt for GitHub URL
+if [ -z "${GITHUB_URL:-}" ]; then
+  read -rp "Enter source GitHub repository URL (e.g., https://github.com/OWNER/REPO): " GITHUB_URL
+fi
+
+# Normalize URL
+clean_url=${GITHUB_URL%.git}
+clean_url=${clean_url%/}
+
+# Extract owner/repo
+if [[ $clean_url =~ ^https://github\.com/([^/]+/[^/]+)$ ]]; then
+  path="${BASH_REMATCH[1]}"
+elif [[ $clean_url =~ ^git@github\.com:([^/]+/[^/]+)$ ]]; then
+  path="${BASH_REMATCH[1]}"
+else
+  echo "Unable to parse owner/repo from '$GITHUB_URL'"
+  read -rp "Enter GitHub owner: " GITHUB_OWNER
+  read -rp "Enter GitHub repo: " GITHUB_REPO
+fi
+
+if [ -z "${GITHUB_OWNER:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
+  GITHUB_OWNER=${path%%/*}
+  GITHUB_REPO=${path##*/}
+  echo "Detected GitHub Owner: $GITHUB_OWNER"
+  echo "Detected GitHub Repo: $GITHUB_REPO"
+  read -rp "Is this correct? (y/n): " CONFIRM
+  CONFIRM=$(printf '%s' "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+  if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
+    read -rp "Enter GitHub owner: " GITHUB_OWNER
+    read -rp "Enter GitHub repo: " GITHUB_REPO
+  fi
+fi
 
 # Prompt for deployment parameters
 if [ -z "${PROJECT_NAME:-}" ]; then
@@ -53,13 +83,16 @@ else
     --role-name "$ROLE_NAME" \
     --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 
+  aws iam attach-role-policy \
+    --role-name "$ROLE_NAME" \
+    --policy-arn arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+
   echo "Waiting for IAM role to propagate..."
   sleep 10
 fi
 
 # Create main CodeBuild project
 echo "Creating CodeBuild project: ${PROJECT_NAME}"
-echo "GitHub URL: $(git config --get remote.origin.url)"
 
 BACKEND_ENV='{
   "type": "LINUX_CONTAINER",
@@ -73,20 +106,45 @@ BACKEND_ENV='{
   ]
 }'
 
+ARTIFACTS='{"type":"NO_ARTIFACTS"}'
+SOURCE='{
+  "type":"GITHUB",
+  "location":"'"$GITHUB_URL"'",
+  "buildspec":"buildspec.yml"
+}'`
+
 aws codebuild create-project \
-  --name "${PROJECT_NAME}" \
-  --source "{\"type\":\"GITHUB\",\"location\":\"$(git config --get remote.origin.url)\",\"buildspec\":\"buildspec.yml\"}" \
-  --artifacts '{"type":"NO_ARTIFACTS"}' \
+  --name "$PROJECT_NAME" \
+  --source "$SOURCE" \
+  --artifacts  "$ARTIFACTS" \
   --environment "$BACKEND_ENV" \
-  --service-role "$ROLE_ARN"
+  --service-role "$ROLE_ARN" \
+  --output json \
+  --no-cli-pager
 
-# Start deployment
-echo "Starting deployment process..."
-BUILD_ID=$(aws codebuild start-build \
+if [ $? -eq 0 ]; then
+  echo "✓ CodeBuild project '$PROJECT_NAME' created."
+else
+  echo "✗ Failed to create CodeBuild project."
+  exit 1
+fi
+
+# Start build
+echo "Starting build for '$PROJECT_NAME'..."
+aws codebuild start-build \
   --project-name "$PROJECT_NAME" \
-  --query 'build.id' \
-  --output text)
+  --no-cli-pager \
+  --output json
 
-echo "Deployment initiated. Check AWS CodeBuild console for progress."
-echo "Build ID: $BUILD_ID"
+if [ $? -eq 0 ]; then
+  echo "✓ Build started."
+else
+  echo "✗ Failed to start build."
+  exit 1
+fi
+
+echo "Current CodeBuild projects:"
+aws codebuild list-projects --output table
+
+exit 0
 
