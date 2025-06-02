@@ -45,6 +45,7 @@ phases:
         if [ -z "$AMPLIFY_APP_ID" ]; then
           AMPLIFY_APP_ID=$(aws amplify list-apps --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" --output text)
         fi
+        echo "AMPLIFY_APP_ID=$AMPLIFY_APP_ID"  # Optional: for debugging
       
       # Create and deploy frontend build
       - cd build
@@ -56,7 +57,7 @@ phases:
   post_build:
     commands:
       - echo "Deployment complete!"
-      - echo "Backend Lambda URL: $LAMBDA_URL"
+      - echo "Backend Lambda URL: ${LAMBDA_URL}"
       - echo "Frontend will be available at: https://${AMPLIFY_APP_ID}.amplifyapp.com"
 
 artifacts:
