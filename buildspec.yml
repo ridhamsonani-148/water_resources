@@ -74,6 +74,6 @@ phases:
 
 artifacts:
   files:
-    - Backend/cdk.out/**/*
+    - backend/cdk.out/**/*
     - Frontend/build/**/*
   base-directory: '.'
