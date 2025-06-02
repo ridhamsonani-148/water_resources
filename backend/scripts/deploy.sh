@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Store the root directory path
+ROOT_DIR=$(pwd)
+
 # Prompt for deployment parameters
 if [ -z "${PROJECT_NAME:-}" ]; then
   read -rp "Enter project name (e.g., OpenEarthProject): " PROJECT_NAME
@@ -14,6 +17,14 @@ if [ -z "${ASSETS_BUCKET:-}" ]; then
   read -rp "Enter S3 bucket name for assets: " ASSETS_BUCKET
 fi
 
+if [ -z "${GEE_CREDENTIALS_FILE:-}" ]; then
+  read -rp "Enter the path to GEE credentials file in assets bucket (e.g., credentials/gee-key.json): " GEE_CREDENTIALS_FILE
+fi
+# Verify project structure
+if [ ! -d "backend" ] || [ ! -d "Frontend" ]; then
+    echo "Error: Backend or Frontend directory not found!"
+    exit 1
+fi
 
 # Create IAM role for CodeBuild
 ROLE_NAME="${PROJECT_NAME}-service-role"
@@ -46,76 +57,39 @@ else
   sleep 10
 fi
 
-# Deploy backend via CodeBuild
-echo "Creating CodeBuild project for backend: ${PROJECT_NAME}-backend"
+# Create main CodeBuild project
+echo "Creating CodeBuild project: ${PROJECT_NAME}"
 
 BACKEND_ENV='{
   "type": "LINUX_CONTAINER",
   "image": "aws/codebuild/standard:7.0",
   "computeType": "BUILD_GENERAL1_SMALL",
   "environmentVariables": [
+    {"name": "PROJECT_NAME", "value": "'"$PROJECT_NAME"'", "type": "PLAINTEXT"},
     {"name": "BUCKET_NAME", "value": "'"$BUCKET_NAME"'", "type": "PLAINTEXT"},
-    {"name": "ASSETS_BUCKET", "value": "'"$ASSETS_BUCKET"'", "type": "PLAINTEXT"}
+    {"name": "ASSETS_BUCKET", "value": "'"$ASSETS_BUCKET"'", "type": "PLAINTEXT"},
+    {"name": "GEE_CREDENTIALS_FILE", "value": "'"$GEE_CREDENTIALS_FILE"'", "type": "PLAINTEXT"}
   ]
 }'
 
 aws codebuild create-project \
-  --name "${PROJECT_NAME}-backend" \
+  --name "${PROJECT_NAME}" \
   --source "{\
     \"type\":\"GITHUB\",\
     \"location\":\"$(git config --get remote.origin.url)\",\
-    \"buildspec\":\"Backend/buildspec.yml\"\
+    \"buildspec\":\"buildspec.yml\"\
   }" \
   --artifacts '{"type":"NO_ARTIFACTS"}' \
   --environment "$BACKEND_ENV" \
   --service-role "$ROLE_ARN"
 
-# Start backend build and wait for completion
-echo "Starting backend deployment..."
+# Start deployment
+echo "Starting deployment process..."
 BUILD_ID=$(aws codebuild start-build \
-  --project-name "${PROJECT_NAME}-backend" \
+  --project-name "$PROJECT_NAME" \
   --query 'build.id' \
   --output text)
 
-# Wait for backend build to complete and get Lambda URL
-echo "Waiting for backend deployment to complete..."
-aws codebuild wait build-completed --id "$BUILD_ID"
+echo "Deployment initiated. Check AWS CodeBuild console for progress."
+echo "Build ID: $BUILD_ID"
 
-# Get Lambda Function URL from CloudFormation outputs
-LAMBDA_URL=$(aws cloudformation describe-stacks \
-  --stack-name OpenEarthStack \
-  --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' \
-  --output text)
-
-# Create/update .env file for frontend
-echo "Updating frontend environment configuration..."
-echo "REACT_APP_API_URL=$LAMBDA_URL" > "../Frontend/.env"
-
-# Build and deploy frontend to Amplify
-echo "Building frontend application..."
-cd ../Frontend
-npm install
-npm run build
-
-# Create Amplify app
-echo "Creating Amplify app..."
-AMPLIFY_APP_ID=$(aws amplify create-app \
-  --name "${PROJECT_NAME}-frontend" \
-  --repository "$(git config --get remote.origin.url)" \
-  --query 'app.appId' \
-  --output text)
-
-# Create build zip
-cd build
-zip -r ../build.zip .
-cd ..
-
-# Deploy to Amplify
-aws amplify start-deployment \
-  --app-id "$AMPLIFY_APP_ID" \
-  --branch-name main \
-  --source-url build.zip
-
-echo "Deployment complete!"
-echo "Backend Lambda URL: $LAMBDA_URL"
-echo "Frontend will be available at: https://${AMPLIFY_APP_ID}.amplifyapp.com"

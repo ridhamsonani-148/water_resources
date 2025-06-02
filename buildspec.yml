@@ -1,0 +1,79 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+      python: 3.13
+    commands:
+      - echo "Installing global dependencies..."
+      - npm install -g aws-cdk
+      - pip install --upgrade awscli
+
+  pre_build:
+    commands:
+      - echo "Starting backend deployment..."
+      - cd backend
+      - npm ci
+      - npm run build
+      - echo "Bootstrapping CDK..."
+      - cdk bootstrap --require-approval never
+      - cd ..
+
+  build:
+    commands:
+      # Deploy backend
+      - echo "Deploying CDK stack..."
+      - cd backend
+      - cdk deploy OpenEarthStack --require-approval never \
+          --parameters BucketName="$BUCKET_NAME" \
+          --parameters AssetsBucketName="$ASSETS_BUCKET"\
+          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+      
+      # Get Lambda URL for frontend
+      - LAMBDA_URL=$(aws cloudformation describe-stacks \
+          --stack-name OpenEarthStack \
+          --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionUrl`].OutputValue' \
+          --output text)
+      - cd ..
+      
+      # Deploy frontend
+      - echo "Building frontend..."
+      - cd Frontend
+      - echo "REACT_APP_API_URL=$LAMBDA_URL" > .env
+      - npm ci
+      - npm run build
+      
+      # Deploy to Amplify
+      - echo "Creating/updating Amplify app..."
+      - |
+        AMPLIFY_APP_ID=$(aws amplify create-app \
+          --name "${PROJECT_NAME}-frontend" \
+          --repository "$(git config --get remote.origin.url)" \
+          --query 'app.appId' \
+          --output text 2>/dev/null || \
+          aws amplify list-apps \
+          --query "apps[?name=='${PROJECT_NAME}-frontend'].appId" \
+          --output text)
+      
+      # Create and deploy frontend build
+      - cd build
+      - zip -r ../build.zip .
+      - cd ..
+      - aws amplify start-deployment \
+          --app-id "$AMPLIFY_APP_ID" \
+          --branch-name main \
+          --source-url build.zip
+      - cd ..
+
+  post_build:
+    commands:
+      - echo "Deployment complete!"
+      - echo "Backend Lambda URL: $LAMBDA_URL"
+      - echo "Frontend will be available at: https://${AMPLIFY_APP_ID}.amplifyapp.com"
+
+artifacts:
+  files:
+    - Backend/cdk.out/**/*
+    - Frontend/build/**/*
+  base-directory: '.'
