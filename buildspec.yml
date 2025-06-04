@@ -54,6 +54,10 @@ phases:
       # Create main branch if it doesn't exist
       - echo "Creating main branch..."
       - aws amplify create-branch --app-id "$AMPLIFY_APP_ID" --branch-name main || echo "Branch already exists"
+
+      # # Make main branch public
+      # - echo "Making main branch public..."
+      # - aws amplify update-branch --app-id "$AMPLIFY_APP_ID" --branch-name main --enable-basic-auth false
       
       # Create build.zip
       - echo "Creating build.zip..."
@@ -76,6 +80,21 @@ phases:
         curl -f --upload-file build.zip "$ZIP_UPLOAD_URL" || { echo "Failed to upload build.zip"; exit 1; }
         # Start the deployment job
         aws amplify start-deployment --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" || { echo "Failed to start deployment"; exit 1; }
+
+      # Wait for deployment to complete
+      - echo "Waiting for deployment to complete..."
+      - |
+        STATUS="PENDING"
+        while [ "$STATUS" != "SUCCEED" ]; do
+          STATUS=$(aws amplify get-job --app-id "$AMPLIFY_APP_ID" --branch-name main --job-id "$JOB_ID" --query 'job.summary.status' --output text)
+          if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELLED" ]; then
+            echo "Error: Deployment failed with status $STATUS"
+            exit 1
+          fi
+          echo "Deployment status: $STATUS"
+          sleep 10
+        done
+        echo "Deployment successfully completed!"
 
   post_build:
     commands:
