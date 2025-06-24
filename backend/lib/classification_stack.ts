@@ -7,6 +7,7 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 
 export interface ForestClassificationStackProps extends cdk.StackProps {
+  githubUrl?: string
   projectName?: string;
   amplifyAppName?: string;
   amplifyBranchName?: string;
@@ -17,7 +18,6 @@ export class ForestClassificationStack extends cdk.Stack {
     super(scope, id, props);
 
     const projectName = props?.projectName || 'openearth';
-    const amplifyAppName = props?.amplifyAppName || `${projectName}-frontend`;
     const amplifyBranchName = props?.amplifyBranchName || 'main';
 
     // Define CloudFormation parameters
