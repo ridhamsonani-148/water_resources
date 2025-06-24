@@ -37,7 +37,8 @@ phases:
       # Extract outputs
       - LAMBDA_URL=$(cat outputs.json | jq -r '.ForestClassificationStack.LambdaFunctionUrl // empty')
       - FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.ForestClassificationStack.FrontendBuildBucketName // empty')
-      - if [ -z "$LAMBDA_URL" ] || [ -z "$FRONTEND_BUILD_BUCKET" ]; then
+      - |
+        if [ -z "$LAMBDA_URL" ] || [ -z "$FRONTEND_BUILD_BUCKET" ]; then
           echo "Error: Could not extract required outputs from CDK deployment"
           exit 1
         fi
@@ -76,11 +77,13 @@ phases:
       - npm run build
       
       # Validate build
-      - if [ ! -f "build/index.html" ]; then
+      - |
+        if [ ! -f "build/index.html" ]; then
           echo "❌ ERROR: Build failed - index.html not found!"
           exit 1
         fi
-      - if grep -q "%PUBLIC_URL%" build/index.html; then
+      - |
+        if grep -q "%PUBLIC_URL%" build/index.html; then
           echo "❌ ERROR: Build incomplete - %PUBLIC_URL% not replaced!"
           exit 1
         fi
@@ -109,7 +112,8 @@ phases:
       - echo ""
       - echo "🔗 URLs:"
       - echo "Lambda URL: $LAMBDA_URL"
-      - if [ -n "$AMPLIFY_APP_ID" ]; then
+      - |
+        if [ -n "$AMPLIFY_APP_ID" ]; then
           echo "Amplify URL: https://$AMPLIFY_BRANCH_NAME.$AMPLIFY_APP_ID.amplifyapp.com"
         fi
 
