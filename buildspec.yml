@@ -25,13 +25,13 @@ phases:
     commands:
       - echo "Deploying CDK stack..."
       - cdk deploy ForestClassificationStack --require-approval never \
-          --parameters BucketName="$BUCKET_NAME" \
-          --parameters AssetsBucketName="$ASSETS_BUCKET" \
-          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
-          --context projectName="$PROJECT_NAME" \
-          --context amplifyAppName="$AMPLIFY_APP_NAME" \
-          --context amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
-          --outputs-file outputs.json
+        --parameters BucketName="$BUCKET_NAME" \
+        --parameters AssetsBucketName="$ASSETS_BUCKET" \
+        --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+        --context projectName="$PROJECT_NAME" \
+        --context amplifyAppName="$AMPLIFY_APP_NAME" \
+        --context amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
+        --outputs-file outputs.json
       - LAMBDA_URL=$(cat outputs.json | jq -r '.ForestClassificationStack.LambdaFunctionUrl // empty')
       - FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.ForestClassificationStack.FrontendBuildBucketName // empty')
       - |
