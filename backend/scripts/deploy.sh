@@ -37,6 +37,7 @@ clean_url=${clean_url%/}
 # Prompt for deployment parameters
 if [ -z "${PROJECT_NAME:-}" ]; then
   read -rp "Enter project name [default: open-earth-classification]: " PROJECT_NAME
+  PROJECT_NAME=${PROJECT_NAME:-open-earth-classification}
 fi
 
 if [ -z "${BUCKET_NAME:-}" ]; then
