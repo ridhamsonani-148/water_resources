@@ -8,83 +8,113 @@ phases:
     commands:
       - echo "Installing global dependencies..."
       - npm install -g aws-cdk
-      - pip install --upgrade awscli
-      - npm install -g @aws-amplify/cli
+      # - pip install --upgrade awscli
+      # - npm install -g @aws-amplify/cli
       - apt-get update && apt-get install -y jq
+      - cd backend
+      - npm install
 
   pre_build:
     commands:
       - echo "Starting backend deployment..."
-      - cd backend
-      - npm install
       - npm run build
       - echo "Bootstrapping CDK..."
       - cdk bootstrap --require-approval never
 
   build:
     commands:
-      - echo "Deploying CDK stack..."
-      - cdk deploy ForestClassificationStack --require-approval never \
-        --parameters BucketName="$BUCKET_NAME" \
-        --parameters AssetsBucketName="$ASSETS_BUCKET" \
-        --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
-        --context projectName="$PROJECT_NAME" \
-        --context amplifyAppName="$AMPLIFY_APP_NAME" \
-        --context amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
-        --outputs-file outputs.json
-      - LAMBDA_URL=$(cat outputs.json | jq -r '.ForestClassificationStack.LambdaFunctionUrl // empty')
-      - FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.ForestClassificationStack.FrontendBuildBucketName // empty')
       - |
-        if [ -z "$LAMBDA_URL" ] || [ -z "$FRONTEND_BUILD_BUCKET" ]; then
-          echo "Error: Could not extract required outputs from CDK deployment"
-          exit 1
+        if [ "$ACTION" = "destroy" ]; then          
+          cdk destroy ForestClassificationStack --force \
+          --parameters projectName="$PROJECT_NAME" \
+          --parameters BucketName="$BUCKET_NAME" \
+          --parameters AssetsBucketName="$ASSETS_BUCKET" \
+          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+          --parameters amplifyAppName="$AMPLIFY_APP_NAME" \
+          --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
+        else
+          echo "=== PHASE 1: Backend Deployment ==="
+          cdk deploy ForestClassificationStack --require-approval never \
+          --parameters projectName="$PROJECT_NAME" \
+          --parameters BucketName="$BUCKET_NAME" \
+          --parameters AssetsBucketName="$ASSETS_BUCKET" \
+          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+          --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
+          --outputs-file outputs.json
+          
+          LAMBDA_URL=$(cat outputs.json | jq -r '.ForestClassificationStack.LambdaFunctionUrl // empty')
+          FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.ForestClassificationStack.FrontendBuildBucketName // empty')
+          
+          if [ -z "$LAMBDA_URL" ] || [ -z "$FRONTEND_BUILD_BUCKET" ]; then
+            echo "Error: Could not extract required outputs from CDK deployment"
+            exit 1
+          fi
+          echo "Lambda URL: $LAMBDA_URL"
+                  
+          echo "=== PHASE 2: Amplify App Setup ==="
+          echo "Creating/updating Amplify app..."
+          AMPLIFY_APP_ID=$(aws amplify create-app \
+            --name "$AMPLIFY_APP_NAME" \
+            --platform WEB \
+            --environment-variables "REACT_APP_API_URL=$LAMBDA_URL" \
+            --query 'app.appId' \
+            --output text 2>/dev/null || \
+            aws amplify list-apps \
+            --query "apps[?name=='$AMPLIFY_APP_NAME'].appId" \
+            --output text)
+            
+          aws amplify create-branch \
+            --app-id "$AMPLIFY_APP_ID" \
+            --branch-name "$AMPLIFY_BRANCH_NAME" \
+            --stage PRODUCTION \
+            --environment-variables "REACT_APP_API_URL=$LAMBDA_URL" \
+            --no-cli-pager 2>/dev/null || echo "Branch already exists"
+
+          aws lambda update-function-configuration \
+            --function-name "$(cat outputs.json | jq -r '.ForestClassificationStack.AmplifyDeployerFunctionName')" \
+            --environment "Variables={AMPLIFY_APP_ID=$AMPLIFY_APP_ID, AMPLIFY_BRANCH_NAME=$AMPLIFY_BRANCH_NAME}"
+          
+          echo "=== PHASE 5: Frontend Build and Automated Deployment ==="
+          cd ../Frontend
+          
+          export PUBLIC_URL=""
+          export GENERATE_SOURCEMAP=false
+          
+          echo "REACT_APP_API_URL=$LAMBDA_URL" > .env.production
+          echo "PUBLIC_URL=" >> .env.production
+          echo "GENERATE_SOURCEMAP=false" >> .env.production
+          
+          rm -rf build/ node_modules/.cache/
+          npm ci --production=false
+          npm run build
+          
+          if [ ! -f "build/index.html" ]; then
+            echo "❌ ERROR: Build failed - index.html not found!"
+            exit 1
+          fi
+          
+          if grep -q "%PUBLIC_URL%" build/index.html; then
+            echo "❌ ERROR: Build incomplete - %PUBLIC_URL% not replaced!"
+            exit 1
+          fi
+          
+          echo "✅ Build successful"
+          
+          cd build
+          zip -r ../build.zip . -x "*.DS_Store" "*.map"
+          cd ..
+          
+          BUILD_KEY="builds/build-$(date +%s).zip"
+          aws s3 cp build.zip s3://$FRONTEND_BUILD_BUCKET/$BUILD_KEY
+          
+          echo "✅ Build artifact uploaded to S3: $BUILD_KEY"
+          echo "🚀 Automated deployment will start via EventBridge trigger"
+          echo "📱 Amplify App URL: https://$AMPLIFY_BRANCH_NAME.$AMPLIFY_APP_ID.amplifyapp.com"
+          
+          echo "$AMPLIFY_APP_ID" > ../amplify_app_id.txt
+          
+          cd ../Backend
         fi
-      - echo "Creating/updating Amplify app..."
-      - AMPLIFY_APP_ID=$(aws amplify create-app \
-          --name "$AMPLIFY_APP_NAME" \
-          --platform WEB \
-          --environment-variables "REACT_APP_API_URL=$LAMBDA_URL" \
-          --query 'app.appId' \
-          --output text 2>/dev/null || \
-          aws amplify list-apps \
-          --query "apps[?name=='$AMPLIFY_APP_NAME'].appId" \
-          --output text)
-      - aws amplify create-branch \
-          --app-id "$AMPLIFY_APP_ID" \
-          --branch-name "$AMPLIFY_BRANCH_NAME" \
-          --stage PRODUCTION \
-          --environment-variables "REACT_APP_API_URL=$LAMBDA_URL" \
-          --no-cli-pager 2>/dev/null || echo "Branch already exists"
-      - aws lambda update-function-configuration \
-          --function-name "$(cat outputs.json | jq -r '.ForestClassificationStack.AmplifyDeployerFunctionName')" \
-          --environment "Variables={AMPLIFY_APP_ID=$AMPLIFY_APP_ID, AMPLIFY_BRANCH_NAME=$AMPLIFY_BRANCH_NAME}"
-      - echo "Building frontend..."
-      - cd ../Frontend
-      - echo "REACT_APP_API_URL=$LAMBDA_URL" > .env.production
-      - echo "PUBLIC_URL=" >> .env.production
-      - echo "GENERATE_SOURCEMAP=false" >> .env.production
-      - rm -rf build/ node_modules/.cache/
-      - npm ci --production=false
-      - npm run build
-      - |
-        if [ ! -f "build/index.html" ]; then
-          echo "❌ ERROR: Build failed - index.html not found!"
-          exit 1
-        fi
-      - |
-        if grep -q "%PUBLIC_URL%" build/index.html; then
-          echo "❌ ERROR: Build incomplete - %PUBLIC_URL% not replaced!"
-          exit 1
-        fi
-      - echo "✅ Build successful"
-      - cd build
-      - zip -r ../build.zip . -x "*.DS_Store" "*.map"
-      - cd ..
-      - BUILD_KEY="builds/build-$(date +%s).zip"
-      - aws s3 cp build.zip s3://$FRONTEND_BUILD_BUCKET/$BUILD_KEY
-      - echo "🚀 Automated deployment will start via EventBridge trigger"
-      - echo "$AMPLIFY_APP_ID" > ../amplify_app_id.txt
-      - cd ../backend
 
   post_build:
     commands:

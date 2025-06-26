@@ -10,33 +10,33 @@ fi
 clean_url=${GITHUB_URL%.git}
 clean_url=${clean_url%/}
 
-# Extract owner/repo
-if [[ $clean_url =~ ^https://github\.com/([^/]+/[^/]+)$ ]]; then
-  path="${BASH_REMATCH[1]}"
-elif [[ $clean_url =~ ^git@github\.com:([^/]+/[^/]+)$ ]]; then
-  path="${BASH_REMATCH[1]}"
-else
-  echo "Unable to parse owner/repo from '$GITHUB_URL'"
-  read -rp "Enter GitHub owner: " GITHUB_OWNER
-  read -rp "Enter GitHub repo: " GITHUB_REPO
-fi
+# # Extract owner/repo
+# if [[ $clean_url =~ ^https://github\.com/([^/]+/[^/]+)$ ]]; then
+#   path="${BASH_REMATCH[1]}"
+# elif [[ $clean_url =~ ^git@github\.com:([^/]+/[^/]+)$ ]]; then
+#   path="${BASH_REMATCH[1]}"
+# else
+#   echo "Unable to parse owner/repo from '$GITHUB_URL'"
+#   read -rp "Enter GitHub owner: " GITHUB_OWNER
+#   read -rp "Enter GitHub repo: " GITHUB_REPO
+# fi
 
-if [ -z "${GITHUB_OWNER:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
-  GITHUB_OWNER=${path%%/*}
-  GITHUB_REPO=${path##*/}
-  echo "Detected GitHub Owner: $GITHUB_OWNER"
-  echo "Detected GitHub Repo: $GITHUB_REPO"
-  read -rp "Is this correct? (y/n): " CONFIRM
-  CONFIRM=$(printf '%s' "$CONFIRM" | tr '[:upper:]' '[:lower:]')
-  if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
-    read -rp "Enter GitHub owner: " GITHUB_OWNER
-    read -rp "Enter GitHub repo: " GITHUB_REPO
-  fi
-fi
+# if [ -z "${GITHUB_OWNER:-}" ] || [ -z "${GITHUB_REPO:-}" ]; then
+#   GITHUB_OWNER=${path%%/*}
+#   GITHUB_REPO=${path##*/}
+#   echo "Detected GitHub Owner: $GITHUB_OWNER"
+#   echo "Detected GitHub Repo: $GITHUB_REPO"
+#   read -rp "Is this correct? (y/n): " CONFIRM
+#   CONFIRM=$(printf '%s' "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+#   if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
+#     read -rp "Enter GitHub owner: " GITHUB_OWNER
+#     read -rp "Enter GitHub repo: " GITHUB_REPO
+#   fi
+# fi
 
 # Prompt for deployment parameters
 if [ -z "${PROJECT_NAME:-}" ]; then
-  read -rp "Enter project name (e.g., OpenEarthProject): " PROJECT_NAME
+  read -rp "Enter project name [default: open-earth-classification]: " PROJECT_NAME
 fi
 
 if [ -z "${BUCKET_NAME:-}" ]; then
@@ -61,11 +61,16 @@ if [ -z "${AMPLIFY_BRANCH_NAME:-}" ]; then
   AMPLIFY_BRANCH_NAME=${AMPLIFY_BRANCH_NAME:-main}
 fi
 
-# Verify project structure
-if [ ! -d "backend" ] || [ ! -d "Frontend" ]; then
-    echo "Error: Backend or Frontend directory not found!"
-    exit 1
+if [ -z "${ACTION:-}" ]; then
+  read -rp "Enter action [deploy/destroy]: " ACTION
+  ACTION=$(printf '%s' "$ACTION" | tr '[:upper:]' '[:lower:]')
 fi
+
+if [[ "$ACTION" != "deploy" && "$ACTION" != "destroy" ]]; then
+  echo "Invalid action: '$ACTION'. Choose 'deploy' or 'destroy'."
+  exit 1
+fi
+
 
 # Create IAM role for CodeBuild
 ROLE_NAME="${PROJECT_NAME}-service-role"
@@ -115,7 +120,8 @@ BACKEND_ENV='{
     {"name": "ASSETS_BUCKET", "value": "'"$ASSETS_BUCKET"'", "type": "PLAINTEXT"},
     {"name": "GEE_CREDENTIALS_FILE", "value": "'"$GEE_CREDENTIALS_FILE"'", "type": "PLAINTEXT"},
     {"name": "AMPLIFY_APP_NAME", "value": "'"$AMPLIFY_APP_NAME"'", "type": "PLAINTEXT"},
-    {"name": "AMPLIFY_BRANCH_NAME", "value": "'"$AMPLIFY_BRANCH_NAME"'", "type": "PLAINTEXT"}
+    {"name": "AMPLIFY_BRANCH_NAME", "value": "'"$AMPLIFY_BRANCH_NAME"'", "type": "PLAINTEXT"},
+    {"name": "ACTION", "value": "'"$ACTION"'", "type": "PLAINTEXT"}
   ]
 }'
 

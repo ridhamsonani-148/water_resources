@@ -6,19 +6,21 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 
-export interface ForestClassificationStackProps extends cdk.StackProps {
-  githubUrl?: string
-  projectName?: string;
-  amplifyAppName?: string;
-  amplifyBranchName?: string;
-}
 
 export class ForestClassificationStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: ForestClassificationStackProps) {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const projectName = props?.projectName || 'openearth';
-    const amplifyBranchName = props?.amplifyBranchName || 'main';
+    const projectNameParam = new cdk.CfnParameter(this, 'ProjectName', {
+      type: 'String', 
+      description: 'The name of the project, used for naming resources.',
+      default: 'ForestClassificationProject',
+    });
+    
+    const amplifyBranchNameParam = new cdk.CfnParameter(this, 'AmplifyBranchName', {
+      type: 'String',
+      description: 'The name of the Amplify branch to deploy the frontend application.',
+    });
 
     // Define CloudFormation parameters
     const assetsBucketNameParam = new cdk.CfnParameter(this, 'AssetsBucketName', {
@@ -40,6 +42,8 @@ export class ForestClassificationStack extends cdk.Stack {
     const assetsBucketName = assetsBucketNameParam.valueAsString;
     const bucketName = bucketNameParam.valueAsString;
     const geeCredentialsFile = geeCredentialsFileParam.valueAsString;
+    const projectName = projectNameParam.valueAsString;
+    const amplifyBranchName = amplifyBranchNameParam.valueAsString;
 
     // Reference the assets bucket
     const assetsBucket = s3.Bucket.fromBucketName(this, 'AssetsBucket', assetsBucketName);
