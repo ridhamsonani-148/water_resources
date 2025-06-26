@@ -11,13 +11,13 @@ export class ForestClassificationStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const projectNameParam = new cdk.CfnParameter(this, 'ProjectName', {
+    const projectNameParam = new cdk.CfnParameter(this, 'projectName', {
       type: 'String', 
       description: 'The name of the project, used for naming resources.',
       default: 'ForestClassificationProject',
     });
     
-    const amplifyBranchNameParam = new cdk.CfnParameter(this, 'AmplifyBranchName', {
+    const amplifyBranchNameParam = new cdk.CfnParameter(this, 'amplifyBranchName', {
       type: 'String',
       description: 'The name of the Amplify branch to deploy the frontend application.',
     });
