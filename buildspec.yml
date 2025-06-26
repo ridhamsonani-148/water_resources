@@ -26,21 +26,20 @@ phases:
       - |
         if [ "$ACTION" = "destroy" ]; then          
           cdk destroy ForestClassificationStack --force \
-          --parameters projectName="$PROJECT_NAME" \
-          --parameters BucketName="$BUCKET_NAME" \
-          --parameters AssetsBucketName="$ASSETS_BUCKET" \
-          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
-          --parameters amplifyAppName="$AMPLIFY_APP_NAME" \
-          --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
+            --parameters projectName="$PROJECT_NAME" \
+            --parameters BucketName="$BUCKET_NAME" \
+            --parameters AssetsBucketName="$ASSETS_BUCKET" \
+            --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+            --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME"
         else
           echo "=== PHASE 1: Backend Deployment ==="
           cdk deploy ForestClassificationStack --require-approval never \
-          --parameters projectName="$PROJECT_NAME" \
-          --parameters BucketName="$BUCKET_NAME" \
-          --parameters AssetsBucketName="$ASSETS_BUCKET" \
-          --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
-          --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
-          --outputs-file outputs.json
+            --parameters projectName="$PROJECT_NAME" \
+            --parameters BucketName="$BUCKET_NAME" \
+            --parameters AssetsBucketName="$ASSETS_BUCKET" \
+            --parameters GeeCredentialsFile="$GEE_CREDENTIALS_FILE" \
+            --parameters amplifyBranchName="$AMPLIFY_BRANCH_NAME" \
+            --outputs-file outputs.json
           
           LAMBDA_URL=$(cat outputs.json | jq -r '.ForestClassificationStack.LambdaFunctionUrl // empty')
           FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.ForestClassificationStack.FrontendBuildBucketName // empty')
