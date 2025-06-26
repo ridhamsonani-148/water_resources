@@ -112,7 +112,7 @@ phases:
           
           echo "$AMPLIFY_APP_ID" > ../amplify_app_id.txt
           
-          cd ../Backend
+          cd ../backend
         fi
 
   post_build:
